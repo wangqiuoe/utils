@@ -5,7 +5,7 @@
 ----
 * python==3.7.1
 * 其他
->```python
+```python
 from bs4 import BeautifulSoup
 import re
 import xlwt
