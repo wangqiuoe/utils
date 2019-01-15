@@ -13,7 +13,7 @@ tf.flags.DEFINE_integer("vocab_size", 147412, "vocabulary size")
 tf.flags.DEFINE_integer("num_classes", 2, "number of classes")
 tf.flags.DEFINE_integer("embedding_size", 300, "Dimensionality of character embedding (default: 200)")
 tf.flags.DEFINE_integer("hidden_size", 150, "Dimensionality of GRU hidden layer (default: 50)")
-tf.flags.DEFINE_integer("batch_size", 32, "Batch Size (default: 64)")
+tf.flags.DEFINE_integer("batch_size", 16, "Batch Size (default: 64)")
 tf.flags.DEFINE_integer("num_epochs", 1, "Number of training epochs (default: 50)")
 tf.flags.DEFINE_integer("checkpoint_every", 100, "Save model after this many steps (default: 100)")
 tf.flags.DEFINE_integer("num_checkpoints", 5, "Number of checkpoints to store (default: 5)")
@@ -96,7 +96,8 @@ with tf.Session() as sess:
             han.max_sentence_length: max_sentence_length,
             han.batch_size: FLAGS.batch_size
         }
-        _, step, summaries, cost, accuracy = sess.run([train_op, global_step, train_summary_op, loss, acc], feed_dict)
+        #_, step, summaries, cost, accuracy = sess.run([train_op, global_step, train_summary_op, loss, acc], feed_dict)
+        _, step, summaries, cost, accuracy = sess.run([train_summary_op, loss, acc], feed_dict)
 
         time_str = str(int(time.time()))
         print("{}: step {}, loss {:g}, acc {:g}".format(time_str, step, cost, accuracy))
@@ -127,9 +128,9 @@ with tf.Session() as sess:
            # y = train_y[i:i + FLAGS.batch_size]
             x = train_x[:FLAGS.batch_size]
             y = train_y[:FLAGS.batch_size]
-            x, y,document_sizes, sentence_sizes = batch(x, y)
+            x, y, max_ducument_len, max_sentence_len = batch(x, y)
             #x, y = batch(x, y)
             #sys.exit(0)
-            step = train_step(x, y, document_sizes, sentence_sizes)
+            #step = train_step(x, y, max_ducument_len, max_sentence_len)
             #if step % FLAGS.evaluate_every == 0:
             #    dev_step(dev_x, dev_y, dev_summary_writer)

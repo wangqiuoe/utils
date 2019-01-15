@@ -44,7 +44,7 @@ def batch(inputs, y):
   y_np = np.zeros(shape = [batch_size,2], dtype=np.int32)
   for i,label in enumerate(y):
     y_np[i,label] = 1
-  return b, y_np, document_sizes, sentence_sizes
+  return b, y_np, document_size, sentence_size
   #return b, y_np
 
 def batch_iter(data, batch_size, num_epochs, shuffle=True):
