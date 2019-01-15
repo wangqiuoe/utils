@@ -1,18 +1,20 @@
 #coding=utf-8
+import json
 import sys
 import tensorflow as tf
 import model
 import time
 import os
-from load_data import read_dataset, batch_iter, batch
-
+import numpy as np
 
 # Data loading params
 tf.flags.DEFINE_string("data_dir", "data/data.dat", "data directory")
 tf.flags.DEFINE_integer("vocab_size", 147412, "vocabulary size")
 tf.flags.DEFINE_integer("num_classes", 2, "number of classes")
-tf.flags.DEFINE_integer("embedding_size", 300, "Dimensionality of character embedding (default: 200)")
-tf.flags.DEFINE_integer("hidden_size", 150, "Dimensionality of GRU hidden layer (default: 50)")
+tf.flags.DEFINE_integer("embedding_size", 100, "Dimensionality of character embedding (default: 200)")
+tf.flags.DEFINE_integer("hidden_size", 50, "Dimensionality of GRU hidden layer (default: 50)")
+tf.flags.DEFINE_integer("max_document_len", 100, "max allowed document len")
+tf.flags.DEFINE_integer("max_sentence_len", 100, "max allowed sentence len")
 tf.flags.DEFINE_integer("batch_size", 16, "Batch Size (default: 64)")
 tf.flags.DEFINE_integer("num_epochs", 1, "Number of training epochs (default: 50)")
 tf.flags.DEFINE_integer("checkpoint_every", 100, "Save model after this many steps (default: 100)")
@@ -26,11 +28,56 @@ TRAIN_FILE = './data_demo'
 VALID_FILE = './data_demo'
 #TEST_FILE = ''
 
+def read_dataset(fin_dir):
+    with open(fin_dir, 'rb') as f:
+        y = []
+        x = []
+        for line in f:
+            line = line.strip().split('\t')
+            label = int(line[1])
+            doc_index = json.loads(line[2])
+            y.append(label)
+            x.append(doc_index)
+        y = np.array(y)
+        x = np.array(x)
+        return x, y
+
 print "Loading data ..."
 train_x, train_y = read_dataset(TRAIN_FILE)
 dev_x, dev_y = read_dataset(VALID_FILE)
 
 print "Loading data finished"
+
+
+
+def batch(inputs, y):
+    batch_size = len(inputs)
+    
+    document_sizes = np.array([len(doc) for doc in inputs], dtype=np.int32)
+    document_size = document_sizes.max()
+    document_size = document_size if document_size < FLAGS.max_document_len else FLAGS.max_document_len
+     
+    sentence_sizes_ = [[len(sent) for sent in doc] for doc in inputs]
+    sentence_size = max(map(max, sentence_sizes_))
+    sentence_size = sentence_size if sentence_size < FLAGS.max_sentence_len else FLAGS.max_sentence_len
+   
+    b = np.zeros(shape=[batch_size, document_size, sentence_size], dtype=np.int32) # == PAD
+    
+    sentence_sizes = np.zeros(shape=[batch_size, document_size], dtype=np.int32)
+    for i, document in enumerate(inputs):
+        for j, sentence in enumerate(document):
+            if j >= document_size:
+                continue
+            sentence_sizes[i, j] = sentence_sizes_[i][j]
+            for k, word in enumerate(sentence):
+                if k >= sentence_size:
+                    continue
+                b[i, j, k] = word
+    print 'document_size: %s; sentence_size: %s; x.shape: %s' %(document_size, sentence_size, b.shape)
+    y_np = np.zeros(shape = [batch_size,2], dtype=np.int32)
+    for i,label in enumerate(y):
+        y_np[i,label] = 1
+    return b, y_np, document_size, sentence_size
 
 with tf.Session() as sess:
     han = model.HAN(vocab_size=FLAGS.vocab_size,
@@ -96,8 +143,8 @@ with tf.Session() as sess:
             han.max_sentence_length: max_sentence_length,
             han.batch_size: FLAGS.batch_size
         }
-        #_, step, summaries, cost, accuracy = sess.run([train_op, global_step, train_summary_op, loss, acc], feed_dict)
-        _, step, summaries, cost, accuracy = sess.run([train_summary_op, loss, acc], feed_dict)
+        _, step, summaries, cost, accuracy = sess.run([train_op, global_step, train_summary_op, loss, acc], feed_dict)
+        #_, step, summaries, cost, accuracy = sess.run([train_summary_op, loss, acc], feed_dict)
 
         time_str = str(int(time.time()))
         print("{}: step {}, loss {:g}, acc {:g}".format(time_str, step, cost, accuracy))
