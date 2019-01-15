@@ -131,6 +131,6 @@ with tf.Session() as sess:
             x, y, max_ducument_len, max_sentence_len = batch(x, y)
             #x, y = batch(x, y)
             #sys.exit(0)
-            #step = train_step(x, y, max_ducument_len, max_sentence_len)
+            step = train_step(x, y, max_ducument_len, max_sentence_len)
             #if step % FLAGS.evaluate_every == 0:
             #    dev_step(dev_x, dev_y, dev_summary_writer)
