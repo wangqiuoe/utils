@@ -14,7 +14,7 @@ set_random_seed(2)
 # Data loading params
 tf.flags.DEFINE_string("data_dir", "data/data.dat", "data directory")
 tf.flags.DEFINE_integer("vocab_size", 147412, "vocabulary size")
-tf.flags.DEFINE_integer("num_classes", 2, "number of classes")
+tf.flags.DEFINE_integer("num_classes", 1, "number of classes")
 tf.flags.DEFINE_integer("embedding_size", 100, "Dimensionality of character embedding (default: 200)")
 tf.flags.DEFINE_integer("hidden_size", 50, "Dimensionality of GRU hidden layer (default: 50)")
 tf.flags.DEFINE_integer("max_document_len", 100, "max allowed document len")
@@ -24,12 +24,12 @@ tf.flags.DEFINE_integer("num_epochs", 2, "Number of training epochs (default: 50
 tf.flags.DEFINE_integer("checkpoint_every", 100, "Save model after this many steps (default: 100)")
 tf.flags.DEFINE_integer("num_checkpoints", 5, "Number of checkpoints to store (default: 5)")
 tf.flags.DEFINE_integer("evaluate_every", 20, "evaluate every this many batches")
-tf.flags.DEFINE_float("learning_rate", 0.01, "learning rate")
+tf.flags.DEFINE_float("learning_rate", 0.001, "learning rate")
 tf.flags.DEFINE_float("grad_clip", 5, "grad clip to prevent gradient explode")
 
 FLAGS = tf.flags.FLAGS
-TRAIN_FILE = './new_cid_train_demo'
-VALID_FILE = './data_demo'
+TRAIN_FILE = './train_demo'
+VALID_FILE = './test_demo'
 #TEST_FILE = ''
 
 
@@ -55,9 +55,10 @@ def preprocess(x, y):
                     continue
                 batch_x[i, j, k] = word
     print 'document_size: %s; sentence_size: %s; x.shape: %s' %(document_size, sentence_size, batch_x.shape)
-    batch_y = np.zeros(shape = [batch_size,2], dtype=np.int32)
-    for i,label in enumerate(y):
-        batch_y[i,label] = 1
+    #batch_y = np.zeros(shape = [batch_size,2], dtype=np.int32)
+    #for i,label in enumerate(y):
+    #    batch_y[i,label] = 1
+    batch_y = y.reshape([-1,1])
     return batch_x, batch_y, document_size, sentence_size
 
 
@@ -106,7 +107,7 @@ def batch_iter(fin_dir, batch_size, num_epochs, shuffle=True, shuffle_fold = 5):
             yield batch_x, batch_y, document_size, sentence_size
 
 print "Loading dev data ..."
-dev_generator = batch_iter(VALID_FILE, 1000, 1, False)
+dev_generator = batch_iter(VALID_FILE, 10000, 1, False)
 dev_x, dev_y, document_size_dev, sentence_size_dev = dev_generator.next()
 print "Loading dev data finished"
 
@@ -120,11 +121,16 @@ with tf.Session() as sess:
     with tf.name_scope('loss'):
         loss = tf.reduce_mean(tf.nn.softmax_cross_entropy_with_logits(labels=han.input_y,
                                                                       logits=han.out,
-                                                                      name='loss'))
+                                                                      name='loss',
+                                                                      dim = 0))
+
     with tf.name_scope('accuracy'):
-        predict = tf.argmax(han.out, axis=1, name='predict')
-        label = tf.argmax(han.input_y, axis=1, name='label')
-        acc = tf.reduce_mean(tf.cast(tf.equal(predict, label), tf.float32))
+        #predict = tf.argmax(han.out, axis=1, name='predict')
+        #label = tf.argmax(han.input_y, axis=1, name='label')
+        #acc = tf.reduce_mean(tf.cast(tf.equal(predict, label), tf.float32))
+        predict = han.out
+        label = han.input_y
+        acc, auc_op = tf.metrics.auc(label, predict)
 
     timestamp = str(int(time.time()))
     out_dir = os.path.abspath(os.path.join(os.path.curdir, "runs", timestamp))
@@ -166,6 +172,7 @@ with tf.Session() as sess:
     saver = tf.train.Saver(tf.global_variables(), max_to_keep=FLAGS.num_checkpoints)
 
     sess.run(tf.global_variables_initializer())
+    sess.run(tf.local_variables_initializer())
 
     def train_step(x_batch, y_batch, max_sentence_num, max_sentence_length):
         feed_dict = {
@@ -175,10 +182,13 @@ with tf.Session() as sess:
             han.max_sentence_length: max_sentence_length,
             han.batch_size: x_batch.shape[0]
         }
-        _, step, summaries, cost, accuracy = sess.run([train_op, global_step, train_summary_op, loss, acc], feed_dict)
+        #_, step, summaries, cost, accuracy = sess.run([train_op, global_step, train_summary_op, loss, acc], feed_dict)
+        _, step, summaries, cost, auc = sess.run([train_op, global_step, train_summary_op, loss, auc_op], feed_dict)
+        #auc = sess.run(auc_op)
 
         time_str = str(int(time.time()))
-        print("{}: step {}, loss {:g}, acc {:g}".format(time_str, step, cost, accuracy))
+        #print("{}: step {}, loss {:g}, acc {:g}".format(time_str, step, cost, accuracy))
+        print("{}: step {}, loss {:g}, acc {:g}".format(time_str, step, cost, auc))
         train_summary_writer.add_summary(summaries, step)
 
         return step
